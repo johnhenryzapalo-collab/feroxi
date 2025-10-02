@@ -52,10 +52,17 @@
     <script>
         // ==============================================================================
         // --- CRITICAL: API KEY REQUIRED FOR SEARCH FUNCTIONALITY ---
-        // For external deployment (like GitHub Pages), you MUST REPLACE THE ENTIRE STRING 
-        // with your actual, unique Gemini API Key.
+        // For Canvas preview, it uses the global __api_key.
+        // For external deployment (like GitHub Pages), the API_KEY_EXTERNAL is used.
         // ==============================================================================
-        const API_KEY = "AIzaSyBwRlC-hDCLWkTFrjz_ae4Nqt4P3cWDmlwY"; 
+        
+        // --- DEPLOYMENT KEY INSCRIBED ---
+        // Your new unique key has been added here.
+        const API_KEY_EXTERNAL = "AIzaSyC2hkxT_Z6NvkQ0YHudLHT2SfO07QIL198"; 
+        
+        // Prioritize the key provided by the Canvas environment for local testing.
+        const API_KEY = (typeof __api_key !== 'undefined' && __api_key !== '') ? __api_key : API_KEY_EXTERNAL;
+
         const MODEL = "gemini-2.5-flash-preview-05-20";
         const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
         const MAX_RETRIES = 5;
@@ -73,15 +80,6 @@
 
         // --- API CALL WITH EXPONENTIAL BACKOFF ---
         async function fetchWithRetry(payload, retries = 0) {
-            
-            // Check if key is the placeholder during external use
-            if (API_KEY === "REPLACE_THIS_WITH_YOUR_GEMINI_API_KEY" && retries === 0) {
-                // If it's the placeholder, only allow the call if it's the Canvas injecting the key (which skips this check).
-                // If this is running externally, we stop and warn the user.
-                customAlert("ERROR: Gemini API Key is a placeholder. Please insert your key for external deployment to function.");
-                return null;
-            }
-
             try {
                 const response = await fetch(API_URL, {
                     method: 'POST',
@@ -96,6 +94,13 @@
                 }
 
                 if (!response.ok) {
+                    const errorBody = await response.text();
+                    console.error("API call failed:", response.status, errorBody);
+                    // Critical Error Check: If the status is 400 and the key is the external one,
+                    // we display a special warning for deployment issues.
+                    if (response.status === 400 && API_KEY === API_KEY_EXTERNAL) {
+                         throw new Error(`API Key rejected. Ensure this key is valid and unrestricted for external use.`);
+                    }
                     throw new Error(`API call failed with status: ${response.status}`);
                 }
 
@@ -103,6 +108,13 @@
 
             } catch (error) {
                 console.error("Fetch error after retries:", error);
+                
+                // If it's a known error from the API key check above, use a custom message
+                if (error.message.includes("API Key rejected")) {
+                    customAlert("Deployment Key Rejected! Re-verify your unique Gemini Key.");
+                    return null;
+                }
+
                 customAlert("Failed to consult the Scrying Pool due to a network or API error.");
                 return null;
             }
@@ -116,6 +128,18 @@
 
             if (!query) {
                 customAlert("Enter the enemy's name or intelligence required for the consultation.");
+                return;
+            }
+
+            // Simple check if key is somehow empty
+            if (!API_KEY || API_KEY === "") {
+                loaderDiv.classList.add('hidden');
+                resultsDiv.innerHTML = `
+                    <p class="text-xl text-red-500 italic mt-4">
+                        CRITICAL FAILURE: API Key not configured. 
+                        If deploying externally, ensure you replaced the empty string in the code with your valid key.
+                    </p>`;
+                customAlert("API Key Missing! Cannot consult the Divine.");
                 return;
             }
 
@@ -137,7 +161,20 @@
             loaderDiv.classList.add('hidden');
 
             if (!result) {
-                resultsDiv.innerHTML = `<p class="text-xl text-red-500 italic mt-4">The connection to the pool is corrupted. Check the API Key and network.</p>`;
+                // Check if the key used was the external one and the pool failed, 
+                // which suggests a deployment key issue.
+                if (API_KEY === API_KEY_EXTERNAL) {
+                    resultsDiv.innerHTML = `
+                        <div class="bg-red-900/70 p-6 md:p-8 rounded-xl border-l-4 border-yellow-500 shadow-xl mt-6">
+                            <h3 class="cinzel text-3xl font-bold mb-4 text-yellow-500">DEPLOYMENT WARNING: CHECK API KEY</h3>
+                            <p class="text-xl leading-relaxed text-gray-200">
+                                The Scrying Pool failed to connect using the inscribed external key. Please verify that this key is **valid, active, and has no HTTP referrer restrictions** set in the Google AI Studio for your GitHub domain.
+                            </p>
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `<p class="text-xl text-red-500 italic mt-4">The connection to the pool is corrupted. Check the API Key and network.</p>`;
+                }
                 return;
             }
 
@@ -198,7 +235,7 @@
                 The Scrying Pool
             </h1>
             <p class="text-xl md:text-3xl mt-2 text-gray-300 cinzel font-bold">
-                Consultation Chamber
+                Intelligence Center
             </p>
             <!-- Navigation Link -->
             <div class="mt-4">
@@ -210,44 +247,44 @@
     </header>
 
     <!-- Main Content Container -->
-    <main class="max-w-4xl mx-auto p-6 md:p-10 flex-grow w-full">
+    <main class="max-w-3xl mx-auto p-6 md:p-10 flex-grow w-full">
 
-        <!-- Search Input -->
-        <section class="mb-12 bg-gray-800/70 p-6 md:p-8 rounded-xl border-l-4 border-red-500 shadow-lg">
-            <h2 class="cinzel text-3xl font-bold mb-4 feroxi-text-red">Inquire of the Divine</h2>
-            <p class="text-lg mb-6 leading-relaxed text-gray-300">
+        <!-- Search Input Card -->
+        <section class="mb-12 bg-gray-900/80 p-6 md:p-10 rounded-xl border-4 border-red-800 shadow-2xl">
+            <h2 class="cinzel text-3xl md:text-4xl font-black feroxi-text-red mb-4 uppercase">
+                Inquire of the Divine
+            </h2>
+            <p class="text-gray-400 mb-6 text-lg">
                 Seek vital intelligence. Ask about threats, resources, or strategic locations. The Pool will use the current information of the world to provide a summary.
             </p>
 
-            <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
-                <input type="text" id="searchQuery" placeholder="E.g., Intelligence on the red scorpion pirates..."
-                    class="flex-grow p-3 rounded-lg bg-gray-900 border border-red-800 text-white placeholder-gray-500 focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                    onkeydown="if(event.key === 'Enter') consultScryingPool()">
-                
+            <div class="flex flex-col sm:flex-row gap-4">
+                <input type="text" id="searchQuery" placeholder="Target or intelligence required..."
+                       class="flex-grow p-3 rounded-lg bg-gray-700 text-gray-100 border border-gray-600 focus:border-red-500 focus:ring focus:ring-red-500/50 transition duration-200 placeholder-gray-400">
                 <button onclick="consultScryingPool()" 
-                    class="cinzel bg-red-700 hover:bg-red-600 text-white font-extrabold text-lg uppercase py-3 px-6 rounded-lg transition duration-300 transform hover:scale-[1.02] shadow-xl">
+                        class="cinzel bg-red-700 hover:bg-red-600 text-white font-extrabold text-lg uppercase py-3 px-6 rounded-xl transition duration-300 transform hover:scale-[1.05] shadow-xl border-2 border-red-900 flex-shrink-0">
                     Consult Pool
                 </button>
             </div>
         </section>
 
-        <!-- Results Area -->
-        <section id="resultsArea" class="mb-12">
-            <div id="loader" class="hidden flex justify-center items-center p-10">
-                <div class="spinner"></div>
-                <p class="ml-4 text-lg text-red-400 cinzel">The Scrying Pool is churning...</p>
-            </div>
-            
-            <div id="searchResults" class="min-h-[100px]">
-                <p class="text-center text-gray-500 italic pt-10">Intelligence awaits your command.</p>
-            </div>
+        <!-- Loading Indicator -->
+        <div id="loader" class="hidden text-center mt-8">
+            <div class="spinner mx-auto"></div>
+            <p class="text-red-400 mt-3 cinzel font-semibold">Scrying the Aether...</p>
+        </div>
+
+        <!-- Search Results -->
+        <section id="searchResults" class="mt-8">
+            <!-- Results will be injected here -->
         </section>
 
     </main>
 
     <!-- Footer -->
     <footer class="w-full py-4 mt-8 bg-gray-900 text-center text-sm text-gray-500 border-t border-red-900">
-        &copy; 2025 The Last Born. Intelligence provided by the Divine Gaze. (albo)
+        &copy; 2025 The Last Born. Intelligence gathered by the Divine. (albo)
     </footer>
+
 </body>
 </html>
