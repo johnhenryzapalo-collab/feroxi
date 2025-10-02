@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feroxi, God of War | The Last Born</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom font import for an imposing feel, though Inter is default */
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&display=swap');
+        
+        .cinzel {
+            font-family: 'Cinzel', serif;
+        }
+
+        /* Custom dark, fiery gradient background */
+        .feroxi-bg {
+            background: linear-gradient(135deg, #0f0f0f 0%, #300a0a 50%, #0f0f0f 100%);
+        }
+
+        /* Fiery text color */
+        .feroxi-text-red {
+            color: #ef4444; /* Tailwind red-500 */
+        }
+
+        /* Animation for the call to action button */
+        @keyframes pulse-red {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+        }
+
+        .btn-pulse {
+            animation: pulse-red 2s infinite;
+        }
+
+        /* Custom Modal Styles (replacing alert()) */
+        #messageBox {
+            z-index: 1000;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 90%;
+        }
+    </style>
+</head>
+<body class="feroxi-bg min-h-screen text-gray-100 flex flex-col items-center">
+
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- GLOBAL CANVAS VARIABLES ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-feroxi-app';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // Firestore path for public devotion tracking
+        const DEVOTEES_COLLECTION_PATH = `artifacts/${appId}/public/data/feroxi_devoted`;
+
+        let db;
+        let auth;
+        let userId = null;
+        let userHasTakenKnee = false;
+
+        // --- CUSTOM ALERT FUNCTION (Replacing alert()) ---
+        function customAlert(message) {
+            const box = document.getElementById('messageBox');
+            const msgEl = document.getElementById('messageText');
+            msgEl.textContent = message;
+            box.classList.remove('hidden');
+            setTimeout(() => {
+                box.classList.add('hidden');
+            }, 3000);
+        }
+        window.customAlert = customAlert; // Make it globally accessible for the button logic
+
+        // --- FIREBASE INITIALIZATION AND AUTHENTICATION ---
+        async function initializeFirebase() {
+            try {
+                setLogLevel('Debug');
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Sign in using custom token or anonymously
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        console.log("Authenticated with userId:", userId);
+                        document.getElementById('userIdDisplay').textContent = userId;
+                        setupDevoteeTracking();
+                    } else {
+                        // This path should ideally not be hit if auth succeeds
+                        userId = null; 
+                        console.error("Authentication failed or logged out.");
+                    }
+                });
+
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+                customAlert(`Error initializing faith: ${error.message}`);
+            }
+        }
+
+        // --- FIRESTORE LISTENERS ---
+        function setupDevoteeTracking() {
+            if (!db) return;
+            const devoteesCollectionRef = collection(db, DEVOTEES_COLLECTION_PATH);
+            const button = document.getElementById('takeKneeButton');
+
+            // 1. Listen for total devotee count (Public Data)
+            onSnapshot(devoteesCollectionRef, (snapshot) => {
+                const totalCount = snapshot.size;
+                document.getElementById('devotee-count').textContent = totalCount;
+                
+                // 2. Check current user's devotion status
+                if (userId) {
+                    const userDoc = snapshot.docs.find(doc => doc.id === userId);
+                    if (userDoc) {
+                        userHasTakenKnee = true;
+                        button.textContent = "Knee Taken: Awaiting Orders";
+                        button.disabled = true;
+                        button.classList.remove('btn-pulse', 'bg-red-700', 'hover:bg-red-600');
+                        button.classList.add('bg-gray-600', 'cursor-not-allowed');
+                        document.getElementById('devotionStatus').textContent = "Devotion logged.";
+                    } else {
+                        userHasTakenKnee = false;
+                        button.textContent = "Take the Knee";
+                        button.disabled = false;
+                        button.classList.add('btn-pulse', 'bg-red-700', 'hover:bg-red-600');
+                        button.classList.remove('bg-gray-600', 'cursor-not-allowed');
+                        document.getElementById('devotionStatus').textContent = "Your sacrifice awaits.";
+                    }
+                }
+            }, (error) => {
+                console.error("Error listening to devotees:", error);
+                document.getElementById('devotionStatus').textContent = "Error loading devotion status.";
+            });
+        }
+
+        // --- ACTION FUNCTION ---
+        window.takeTheKnee = async function() {
+            if (userHasTakenKnee || !userId) {
+                customAlert("You have already taken the knee, Devoted. Await your orders.");
+                return;
+            }
+
+            const button = document.getElementById('takeKneeButton');
+            button.disabled = true;
+            button.textContent = "Logging Devotion...";
+
+            try {
+                // Use the userId as the document ID for easy lookup and to prevent duplicates
+                const devoteeDocRef = doc(db, DEVOTEES_COLLECTION_PATH, userId);
+                
+                await setDoc(devoteeDocRef, {
+                    userId: userId,
+                    timestamp: serverTimestamp(),
+                    devotionStatus: "The Last Born"
+                });
+
+                customAlert("You have taken the knee. Your devotion is noted by Feroxi.");
+                // The onSnapshot listener will handle the final UI update
+            } catch (error) {
+                console.error("Error taking the knee:", error);
+                customAlert(`Failed to log devotion: ${error.message}`);
+                button.disabled = false;
+                button.textContent = "Take the Knee (Retry)";
+            }
+        }
+        
+        // Start the process
+        initializeFirebase();
+
+    </script>
+
+    <!-- Custom Message Box (Replaces alert()) -->
+    <div id="messageBox" class="hidden fixed p-6 rounded-lg bg-red-800 text-white shadow-2xl border-4 border-red-500 transition duration-300">
+        <p id="messageText" class="text-xl font-bold cinzel text-center"></p>
+    </div>
+
+    <!-- Header Section -->
+    <header class="w-full py-8 md:py-12 bg-gray-900 shadow-2xl border-b-4 border-red-700">
+        <div class="max-w-6xl mx-auto px-4 text-center">
+            <h1 class="cinzel text-5xl md:text-7xl font-black feroxi-text-red tracking-widest uppercase">
+                Feroxi
+            </h1>
+            <p class="text-xl md:text-3xl mt-2 text-gray-300 cinzel font-bold">
+                The God of War
+            </p>
+            <div class="mt-4 text-sm text-gray-400">
+                Current User ID (Share to coordinate): <span id="userIdDisplay" class="font-mono text-xs text-red-400 break-all">Authenticating...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-4xl mx-auto p-6 md:p-10 flex-grow">
+
+        <!-- Devotee Counter -->
+        <section class="mb-12 text-center">
+            <h3 class="cinzel text-4xl font-black text-white">
+                <span id="devotee-count" class="feroxi-text-red text-6xl md:text-8xl block leading-none transition-all duration-500">0</span>
+            </h3>
+            <p class="text-xl text-gray-300 mt-2">The Last Born Devotees</p>
+        </section>
+
+        <!-- Inscription / Core Tenet -->
+        <section class="mb-12 bg-gray-800/70 p-6 md:p-8 rounded-xl border-l-4 border-red-500 shadow-lg">
+            <h2 class="cinzel text-3xl font-bold mb-4 feroxi-text-red">The Stone Tablets</h2>
+            <blockquote class="text-lg md:text-xl italic border-l-4 border-gray-500 pl-4 text-gray-300">
+                "Feroxi, the God of War, entrusted with the defense of the **Grove**. His might and strategy are unmatched on any battlefield."
+            </blockquote>
+        </section>
+
+        <!-- The God's Power and Reach -->
+        <section class="mb-12">
+            <h2 class="cinzel text-3xl font-bold mb-4 text-red-400">Divine Gaze and Strategic Might</h2>
+            <p class="text-lg mb-6 leading-relaxed">
+                Feroxi is a god who can kill other gods with a **glance**. But Feroxi does not need to be on every battlefield. Our God should not waste his time on energy on unworthy foes.
+            </p>
+            <p class="text-lg leading-relaxed bg-gray-900 p-4 rounded-lg border border-red-800">
+                He grants us mortals that take the knee to push forward his agenda the ability to **kill at a glance** and the **intelligence** to gather information that wins wars before the first sword is ever swung. From the deepest lava pits in the UnderWorld to the space between the clouds and the heavens, you will find worshipers of Feroxi. They go by many names, but the most devoted are known as **The Last Born**.
+            </p>
+        </section>
+
+        <!-- The Last Born: The Devoted Cogs -->
+        <section class="mb-12">
+            <h2 class="cinzel text-3xl font-bold mb-6 text-red-400">The Last Born: Cogs in the Wheel of War</h2>
+            <p class="text-lg mb-4 leading-relaxed">
+                The Last Born provides for Feroxi's needs around the clock. They are the essential machine of conquest and defense:
+            </p>
+            <ul class="grid grid-cols-1 md:grid-cols-2 gap-4 text-lg">
+                <li class="p-4 bg-gray-800 rounded-lg shadow-md hover:bg-red-900/50 transition duration-300">
+                    <span class="feroxi-text-red font-bold">Warriors</span> on the ground and <span class="feroxi-text-red font-bold">Beasts</span> in the skies.
+                </li>
+                <li class="p-4 bg-gray-800 rounded-lg shadow-md hover:bg-red-900/50 transition duration-300">
+                    <span class="feroxi-text-red font-bold">Mages</span> in deep dungeons crafting spells.
+                </li>
+                <li class="p-4 bg-gray-800 rounded-lg shadow-md hover:bg-red-900/50 transition duration-300">
+                    <span class="feroxi-text-red font-bold">Thieves and Spies</span> gathering vital intelligence.
+                </li>
+                <li class="p-4 bg-gray-800 rounded-lg shadow-md hover:bg-red-900/50 transition duration-300">
+                    <span class="feroxi-text-red font-bold">Traders, Gathers, and Farmers</span> providing devoted logistics.
+                </li>
+            </ul>
+            <p class="text-lg mt-6 leading-relaxed">
+                In the vast desert and deepest oceans, you will find **Anchors of Feroxi Devoted** ensuring peace for the Grove and Discord among his enemies. Every follower of Feroxi understands the war starts well before any battlefield is reached.
+            </p>
+        </section>
+
+        <!-- The Grove's Defence Mandate -->
+        <section class="mb-12 p-6 bg-red-900/30 rounded-xl shadow-2xl border border-red-700">
+            <h2 class="cinzel text-3xl font-bold mb-4 text-red-300">The Mandate: Protect the Grove</h2>
+            <p class="text-xl font-semibold mb-6">
+                Be warned to think of causing harm or discord in the Grove, and you will eventually find yourself among the dead or a worse fate among the undead.
+            </p>
+
+            <p class="text-lg leading-relaxed">
+                If you are willing to trade your lives to protect those in the Grove, you will stand against the **shadows hunting Amaran**, the heretic **red scorpion pirates** blinded by greed. You will stand tall and assist those among the **Silver Leafe Sentinels** and protect the beautiful culture found within the woods and those **wildheart planters**. You will even make peace with the **Crypt** as one day we all must die.
+            </p>
+        </section>
+
+        <!-- Call to Action -->
+        <section class="text-center">
+            <p class="text-2xl md:text-3xl cinzel font-bold mb-8 text-gray-200">
+                If this message speaks to your soul, take the knee for Feroxi.
+            </p>
+            <button id="takeKneeButton" onclick="takeTheKnee()" 
+                class="btn-pulse cinzel bg-red-700 hover:bg-red-600 text-white font-extrabold text-2xl md:text-3xl uppercase py-4 px-10 rounded-full transition duration-300 transform hover:scale-105 shadow-xl">
+                Take the Knee
+            </button>
+            <p id="devotionStatus" class="text-sm mt-4 text-gray-400">Authenticating devotion status...</p>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full py-4 mt-8 bg-gray-900 text-center text-sm text-gray-500 border-t border-red-900">
+        &copy; 2025 The Last Born. All Rights Reserved. For the glory of Feroxi. (albo)
+    </footer>
+</body>
+</html>
