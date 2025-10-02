@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Feroxi, God of War | The Last Born</title>
+    <title>Feroxi, God of War | The Last Born (Local Only)</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -46,24 +46,8 @@
 </head>
 <body class="feroxi-bg min-h-screen text-gray-100 flex flex-col items-center">
 
-    <!-- Firebase SDK Imports -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // --- GLOBAL CANVAS VARIABLES ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-feroxi-app';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        
-        // Firestore path for public devotion tracking
-        const DEVOTEES_COLLECTION_PATH = `artifacts/${appId}/public/data/feroxi_devoted`;
-
-        let db;
-        let auth;
-        let userId = null;
-        let userHasTakenKnee = false;
+    <script>
+        const DEVOTION_KEY = 'feroxi_devotion_status';
 
         // --- CUSTOM ALERT FUNCTION (Replacing alert()) ---
         function customAlert(message) {
@@ -75,111 +59,51 @@
                 box.classList.add('hidden');
             }, 3000);
         }
-        window.customAlert = customAlert; // Make it globally accessible for the button logic
+        window.customAlert = customAlert;
 
-        // --- FIREBASE INITIALIZATION AND AUTHENTICATION ---
-        async function initializeFirebase() {
-            try {
-                setLogLevel('Debug');
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
+        // --- STATUS CHECK ---
+        function checkDevotionStatus() {
+            const status = localStorage.getItem(DEVOTION_KEY);
+            const button = document.getElementById('takeKneeButton');
+            const statusDisplay = document.getElementById('devotionStatus');
+            const devoteeCount = document.getElementById('devotee-count');
 
-                // Sign in using custom token or anonymously
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        console.log("Authenticated with userId:", userId);
-                        document.getElementById('userIdDisplay').textContent = userId;
-                        setupDevoteeTracking();
-                    } else {
-                        // This path should ideally not be hit if auth succeeds
-                        userId = null; 
-                        console.error("Authentication failed or logged out.");
-                    }
-                });
-
-            } catch (error) {
-                console.error("Error initializing Firebase:", error);
-                customAlert(`Error initializing faith: ${error.message}`);
+            if (status === 'taken') {
+                button.textContent = "Knee Taken: Awaiting Orders";
+                button.disabled = true;
+                button.classList.remove('btn-pulse', 'bg-red-700', 'hover:bg-red-600');
+                button.classList.add('bg-gray-600', 'cursor-not-allowed');
+                statusDisplay.textContent = "Your devotion is logged locally.";
+                devoteeCount.textContent = "1"; // Local devotion status
+            } else {
+                button.textContent = "Take the Knee";
+                button.disabled = false;
+                button.classList.add('btn-pulse', 'bg-red-700', 'hover:bg-red-600');
+                button.classList.remove('bg-gray-600', 'cursor-not-allowed');
+                statusDisplay.textContent = "Your sacrifice awaits.";
+                devoteeCount.textContent = "0"; // Local devotion status
             }
         }
 
-        // --- FIRESTORE LISTENERS ---
-        function setupDevoteeTracking() {
-            if (!db) return;
-            const devoteesCollectionRef = collection(db, DEVOTEES_COLLECTION_PATH);
-            const button = document.getElementById('takeKneeButton');
-
-            // 1. Listen for total devotee count (Public Data)
-            onSnapshot(devoteesCollectionRef, (snapshot) => {
-                const totalCount = snapshot.size;
-                document.getElementById('devotee-count').textContent = totalCount;
-                
-                // 2. Check current user's devotion status
-                if (userId) {
-                    const userDoc = snapshot.docs.find(doc => doc.id === userId);
-                    if (userDoc) {
-                        userHasTakenKnee = true;
-                        button.textContent = "Knee Taken: Awaiting Orders";
-                        button.disabled = true;
-                        button.classList.remove('btn-pulse', 'bg-red-700', 'hover:bg-red-600');
-                        button.classList.add('bg-gray-600', 'cursor-not-allowed');
-                        document.getElementById('devotionStatus').textContent = "Devotion logged.";
-                    } else {
-                        userHasTakenKnee = false;
-                        button.textContent = "Take the Knee";
-                        button.disabled = false;
-                        button.classList.add('btn-pulse', 'bg-red-700', 'hover:bg-red-600');
-                        button.classList.remove('bg-gray-600', 'cursor-not-allowed');
-                        document.getElementById('devotionStatus').textContent = "Your sacrifice awaits.";
-                    }
-                }
-            }, (error) => {
-                console.error("Error listening to devotees:", error);
-                document.getElementById('devotionStatus').textContent = "Error loading devotion status.";
-            });
-        }
-
         // --- ACTION FUNCTION ---
-        window.takeTheKnee = async function() {
-            if (userHasTakenKnee || !userId) {
+        window.takeTheKnee = function() {
+            if (localStorage.getItem(DEVOTION_KEY) === 'taken') {
                 customAlert("You have already taken the knee, Devoted. Await your orders.");
                 return;
             }
 
-            const button = document.getElementById('takeKneeButton');
-            button.disabled = true;
-            button.textContent = "Logging Devotion...";
-
             try {
-                // Use the userId as the document ID for easy lookup and to prevent duplicates
-                const devoteeDocRef = doc(db, DEVOTEES_COLLECTION_PATH, userId);
-                
-                await setDoc(devoteeDocRef, {
-                    userId: userId,
-                    timestamp: serverTimestamp(),
-                    devotionStatus: "The Last Born"
-                });
-
-                customAlert("You have taken the knee. Your devotion is noted by Feroxi.");
-                // The onSnapshot listener will handle the final UI update
+                localStorage.setItem(DEVOTION_KEY, 'taken');
+                customAlert("You have taken the knee. Your devotion is noted locally by Feroxi.");
+                checkDevotionStatus(); // Update the button and counter
             } catch (error) {
-                console.error("Error taking the knee:", error);
+                console.error("Error logging devotion locally:", error);
                 customAlert(`Failed to log devotion: ${error.message}`);
-                button.disabled = false;
-                button.textContent = "Take the Knee (Retry)";
             }
         }
         
-        // Start the process
-        initializeFirebase();
+        // Initial check on load
+        window.onload = checkDevotionStatus;
 
     </script>
 
@@ -198,7 +122,13 @@
                 The God of War
             </p>
             <div class="mt-4 text-sm text-gray-400">
-                Current User ID (Share to coordinate): <span id="userIdDisplay" class="font-mono text-xs text-red-400 break-all">Authenticating...</span>
+                Current Status: <span id="userIdDisplay" class="font-mono text-xs text-red-400 break-all">Local Browser Storage Only</span>
+            </div>
+            <!-- Navigation Link -->
+            <div class="mt-4">
+                <a href="./feroxi_search.html" class="text-red-500 hover:text-red-300 transition duration-200 text-base font-semibold border-b border-red-500 hover:border-red-300 pb-1">
+                    Consult the Scrying Pool (Search)
+                </a>
             </div>
         </div>
     </header>
@@ -206,12 +136,12 @@
     <!-- Main Content Container -->
     <main class="max-w-4xl mx-auto p-6 md:p-10 flex-grow">
 
-        <!-- Devotee Counter -->
+        <!-- Devotee Counter (Now local status) -->
         <section class="mb-12 text-center">
             <h3 class="cinzel text-4xl font-black text-white">
                 <span id="devotee-count" class="feroxi-text-red text-6xl md:text-8xl block leading-none transition-all duration-500">0</span>
             </h3>
-            <p class="text-xl text-gray-300 mt-2">The Last Born Devotees</p>
+            <p class="text-xl text-gray-300 mt-2">Your Local Devotion Status</p>
         </section>
 
         <!-- Inscription / Core Tenet -->
