@@ -51,11 +51,11 @@
 
     <script>
         // ==============================================================================
-        // --- CRITICAL WARNING: API KEY REQUIRED FOR SEARCH FUNCTIONALITY ---
-        // The Gemini API key MUST be inserted below for the Scrying Pool to work.
-        // Get your key from the Google AI Studio.
+        // --- CRITICAL: API KEY REQUIRED FOR SEARCH FUNCTIONALITY ---
+        // For external deployment (like GitHub Pages), you MUST REPLACE THE ENTIRE STRING 
+        // with your actual, unique Gemini API Key.
         // ==============================================================================
-        const API_KEY = ""; // <<< PASTE YOUR GEMINI API KEY HERE
+        const API_KEY = "AIzaSyBwRlC-hDCLWkTFrjz_ae4Nqt4P3cWDmlwY"; 
         const MODEL = "gemini-2.5-flash-preview-05-20";
         const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
         const MAX_RETRIES = 5;
@@ -73,8 +73,12 @@
 
         // --- API CALL WITH EXPONENTIAL BACKOFF ---
         async function fetchWithRetry(payload, retries = 0) {
-            if (!API_KEY) {
-                customAlert("ERROR: Gemini API Key is missing. Please insert the key to use the Scrying Pool.");
+            
+            // Check if key is the placeholder during external use
+            if (API_KEY === "REPLACE_THIS_WITH_YOUR_GEMINI_API_KEY" && retries === 0) {
+                // If it's the placeholder, only allow the call if it's the Canvas injecting the key (which skips this check).
+                // If this is running externally, we stop and warn the user.
+                customAlert("ERROR: Gemini API Key is a placeholder. Please insert your key for external deployment to function.");
                 return null;
             }
 
