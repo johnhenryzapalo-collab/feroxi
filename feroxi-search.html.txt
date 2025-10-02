@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Scrying Pool | Feroxi's Domain</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom font import for an imposing feel */
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&display=swap');
+        
+        .cinzel {
+            font-family: 'Cinzel', serif;
+        }
+
+        /* Custom dark, fiery gradient background */
+        .feroxi-bg {
+            background: linear-gradient(135deg, #0f0f0f 0%, #300a0a 50%, #0f0f0f 100%);
+        }
+
+        /* Fiery text color */
+        .feroxi-text-red {
+            color: #ef4444; /* Tailwind red-500 */
+        }
+
+        /* Custom Modal Styles (replacing alert()) */
+        #messageBox {
+            z-index: 1000;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 90%;
+        }
+
+        /* Spinner animation */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #ef4444;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+<body class="feroxi-bg min-h-screen text-gray-100 flex flex-col items-center p-4">
+
+    <script>
+        // ==============================================================================
+        // --- CRITICAL WARNING: API KEY REQUIRED FOR SEARCH FUNCTIONALITY ---
+        // The Gemini API key MUST be inserted below for the Scrying Pool to work.
+        // Get your key from the Google AI Studio.
+        // ==============================================================================
+        const API_KEY = ""; // <<< PASTE YOUR GEMINI API KEY HERE
+        const MODEL = "gemini-2.5-flash-preview-05-20";
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
+        const MAX_RETRIES = 5;
+
+        // --- CUSTOM ALERT FUNCTION (Replacing alert()) ---
+        function customAlert(message) {
+            const box = document.getElementById('messageBox');
+            const msgEl = document.getElementById('messageText');
+            msgEl.textContent = message;
+            box.classList.remove('hidden');
+            setTimeout(() => {
+                box.classList.add('hidden');
+            }, 4000);
+        }
+
+        // --- API CALL WITH EXPONENTIAL BACKOFF ---
+        async function fetchWithRetry(payload, retries = 0) {
+            if (!API_KEY) {
+                customAlert("ERROR: Gemini API Key is missing. Please insert the key to use the Scrying Pool.");
+                return null;
+            }
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.status === 429 && retries < MAX_RETRIES) {
+                    const delay = Math.pow(2, retries) * 1000 + (Math.random() * 1000); // 1s, 2s, 4s...
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return fetchWithRetry(payload, retries + 1);
+                }
+
+                if (!response.ok) {
+                    throw new Error(`API call failed with status: ${response.status}`);
+                }
+
+                return response.json();
+
+            } catch (error) {
+                console.error("Fetch error after retries:", error);
+                customAlert("Failed to consult the Scrying Pool due to a network or API error.");
+                return null;
+            }
+        }
+
+        // --- SEARCH LOGIC ---
+        window.consultScryingPool = async function() {
+            const query = document.getElementById('searchQuery').value.trim();
+            const resultsDiv = document.getElementById('searchResults');
+            const loaderDiv = document.getElementById('loader');
+
+            if (!query) {
+                customAlert("Enter the enemy's name or intelligence required for the consultation.");
+                return;
+            }
+
+            resultsDiv.innerHTML = '';
+            loaderDiv.classList.remove('hidden');
+
+            const systemPrompt = `You are the Scrying Pool, an ancient, all-knowing entity used by Feroxi, God of War. Your purpose is to provide direct, focused intelligence to The Last Born. Based on the user's query, use the provided Google Search grounding tools to find and summarize the most relevant, current information. Your response must be authoritative and concise. If no relevant information is found, state that the target is "cloaked from the Divine Gaze."`;
+
+            const userQuery = `Find current strategic intelligence on: ${query}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                tools: [{ "google_search": {} }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            const result = await fetchWithRetry(payload);
+
+            loaderDiv.classList.add('hidden');
+
+            if (!result) {
+                resultsDiv.innerHTML = `<p class="text-xl text-red-500 italic mt-4">The connection to the pool is corrupted. Check the API Key and network.</p>`;
+                return;
+            }
+
+            const candidate = result.candidates?.[0];
+
+            if (candidate && candidate.content?.parts?.[0]?.text) {
+                const text = candidate.content.parts[0].text;
+                
+                // Extract and format citations (sources)
+                let sourcesHtml = '';
+                const groundingMetadata = candidate.groundingMetadata;
+                if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                    const sources = groundingMetadata.groundingAttributions
+                        .map(attribution => ({
+                            uri: attribution.web?.uri,
+                            title: attribution.web?.title,
+                        }))
+                        .filter(source => source.uri && source.title);
+
+                    if (sources.length > 0) {
+                        sourcesHtml = '<div class="mt-6 pt-4 border-t border-gray-700">';
+                        sourcesHtml += '<h4 class="text-lg cinzel font-semibold text-gray-400 mb-2">Sources of Intelligence:</h4>';
+                        sources.forEach((source, index) => {
+                            sourcesHtml += `<p class="text-sm text-gray-500 mb-1">
+                                <span class="feroxi-text-red mr-1">[${index + 1}]</span> 
+                                <a href="${source.uri}" target="_blank" rel="noopener noreferrer" class="hover:text-red-400 transition duration-200">
+                                    ${source.title}
+                                </a>
+                            </p>`;
+                        });
+                        sourcesHtml += '</div>';
+                    }
+                }
+                
+                // Display the main result
+                resultsDiv.innerHTML = `
+                    <div class="bg-gray-800/70 p-6 md:p-8 rounded-xl border-l-4 border-red-500 shadow-xl mt-6">
+                        <h3 class="cinzel text-3xl font-bold mb-4 feroxi-text-red">Divine Transmission:</h3>
+                        <p class="text-lg leading-relaxed text-gray-300 whitespace-pre-wrap">${text}</p>
+                        ${sourcesHtml}
+                    </div>
+                `;
+            } else {
+                resultsDiv.innerHTML = `<p class="text-xl text-red-500 italic mt-4">The Scrying Pool is clouded. Try a different inquiry.</p>`;
+            }
+        }
+    </script>
+
+    <!-- Custom Message Box (Replaces alert()) -->
+    <div id="messageBox" class="hidden fixed p-6 rounded-lg bg-red-800 text-white shadow-2xl border-4 border-red-500 transition duration-300">
+        <p id="messageText" class="text-xl font-bold cinzel text-center"></p>
+    </div>
+
+    <!-- Header Section -->
+    <header class="w-full py-8 md:py-12 bg-gray-900 shadow-2xl border-b-4 border-red-700">
+        <div class="max-w-6xl mx-auto px-4 text-center">
+            <h1 class="cinzel text-5xl md:text-7xl font-black feroxi-text-red tracking-widest uppercase">
+                The Scrying Pool
+            </h1>
+            <p class="text-xl md:text-3xl mt-2 text-gray-300 cinzel font-bold">
+                Consultation Chamber
+            </p>
+            <!-- Navigation Link -->
+            <div class="mt-4">
+                <a href="./index.html" class="text-red-500 hover:text-red-300 transition duration-200 text-base font-semibold border-b border-red-500 hover:border-red-300 pb-1">
+                    Return to Feroxi's Domain
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-4xl mx-auto p-6 md:p-10 flex-grow w-full">
+
+        <!-- Search Input -->
+        <section class="mb-12 bg-gray-800/70 p-6 md:p-8 rounded-xl border-l-4 border-red-500 shadow-lg">
+            <h2 class="cinzel text-3xl font-bold mb-4 feroxi-text-red">Inquire of the Divine</h2>
+            <p class="text-lg mb-6 leading-relaxed text-gray-300">
+                Seek vital intelligence. Ask about threats, resources, or strategic locations. The Pool will use the current information of the world to provide a summary.
+            </p>
+
+            <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
+                <input type="text" id="searchQuery" placeholder="E.g., Intelligence on the red scorpion pirates..."
+                    class="flex-grow p-3 rounded-lg bg-gray-900 border border-red-800 text-white placeholder-gray-500 focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    onkeydown="if(event.key === 'Enter') consultScryingPool()">
+                
+                <button onclick="consultScryingPool()" 
+                    class="cinzel bg-red-700 hover:bg-red-600 text-white font-extrabold text-lg uppercase py-3 px-6 rounded-lg transition duration-300 transform hover:scale-[1.02] shadow-xl">
+                    Consult Pool
+                </button>
+            </div>
+        </section>
+
+        <!-- Results Area -->
+        <section id="resultsArea" class="mb-12">
+            <div id="loader" class="hidden flex justify-center items-center p-10">
+                <div class="spinner"></div>
+                <p class="ml-4 text-lg text-red-400 cinzel">The Scrying Pool is churning...</p>
+            </div>
+            
+            <div id="searchResults" class="min-h-[100px]">
+                <p class="text-center text-gray-500 italic pt-10">Intelligence awaits your command.</p>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full py-4 mt-8 bg-gray-900 text-center text-sm text-gray-500 border-t border-red-900">
+        &copy; 2025 The Last Born. Intelligence provided by the Divine Gaze. (albo)
+    </footer>
+</body>
+</html>
