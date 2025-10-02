@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Feroxi, God of War | The Last Born (Local Only)</title>
+    <title>Feroxi, God of War | Domain of The Last Born</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Custom font import for an imposing feel, though Inter is default */
+        /* Custom font import for an imposing feel */
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&display=swap');
         
         .cinzel {
@@ -24,16 +24,6 @@
             color: #ef4444; /* Tailwind red-500 */
         }
 
-        /* Animation for the call to action button */
-        @keyframes pulse-red {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-            50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-        }
-
-        .btn-pulse {
-            animation: pulse-red 2s infinite;
-        }
-
         /* Custom Modal Styles (replacing alert()) */
         #messageBox {
             z-index: 1000;
@@ -44,11 +34,15 @@
         }
     </style>
 </head>
-<body class="feroxi-bg min-h-screen text-gray-100 flex flex-col items-center">
+<body class="feroxi-bg min-h-screen text-gray-100 flex flex-col items-center p-4">
 
+    <!-- Custom Message Box (Replaces alert()) -->
+    <div id="messageBox" class="hidden fixed p-6 rounded-lg bg-red-800 text-white shadow-2xl border-4 border-red-500 transition duration-300">
+        <p id="messageText" class="text-xl font-bold cinzel text-center"></p>
+    </div>
+
+    <!-- JavaScript for Local Storage Counter -->
     <script>
-        const DEVOTION_KEY = 'feroxi_devotion_status';
-
         // --- CUSTOM ALERT FUNCTION (Replacing alert()) ---
         function customAlert(message) {
             const box = document.getElementById('messageBox');
@@ -57,166 +51,121 @@
             box.classList.remove('hidden');
             setTimeout(() => {
                 box.classList.add('hidden');
-            }, 3000);
+            }, 4000);
         }
-        window.customAlert = customAlert;
 
-        // --- STATUS CHECK ---
-        function checkDevotionStatus() {
-            const status = localStorage.getItem(DEVOTION_KEY);
-            const button = document.getElementById('takeKneeButton');
-            const statusDisplay = document.getElementById('devotionStatus');
-            const devoteeCount = document.getElementById('devotee-count');
+        // --- LOCAL STORAGE COUNTER LOGIC ---
+        let isDevoted = false;
 
-            if (status === 'taken') {
-                button.textContent = "Knee Taken: Awaiting Orders";
-                button.disabled = true;
-                button.classList.remove('btn-pulse', 'bg-red-700', 'hover:bg-red-600');
-                button.classList.add('bg-gray-600', 'cursor-not-allowed');
-                statusDisplay.textContent = "Your devotion is logged locally.";
-                devoteeCount.textContent = "1"; // Local devotion status
+        function loadDevoteeStatus() {
+            // Check if user has previously devoted themselves (stored in local storage)
+            const status = localStorage.getItem('feroxi_devotion');
+            if (status === 'true') {
+                isDevoted = true;
+                updateUI();
+            }
+        }
+
+        function updateUI() {
+            const devoteeStatus = document.getElementById('devoteeStatus');
+            const devoteButton = document.getElementById('devoteButton');
+            
+            if (isDevoted) {
+                devoteeStatus.innerHTML = `
+                    <p class="text-xl md:text-2xl text-green-400 font-bold">
+                        <span class="feroxi-text-red">STATUS:</span> Confirmed. You are one of **The Last Born**.
+                    </p>
+                `;
+                if (devoteButton) {
+                    devoteButton.classList.add('hidden');
+                }
             } else {
-                button.textContent = "Take the Knee";
-                button.disabled = false;
-                button.classList.add('btn-pulse', 'bg-red-700', 'hover:bg-red-600');
-                button.classList.remove('bg-gray-600', 'cursor-not-allowed');
-                statusDisplay.textContent = "Your sacrifice awaits.";
-                devoteeCount.textContent = "0"; // Local devotion status
+                devoteeStatus.innerHTML = `
+                    <p class="text-xl md:text-2xl text-yellow-500 font-bold">
+                        <span class="feroxi-text-red">STATUS:</span> Awaiting your oath. Join The Last Born.
+                    </p>
+                `;
+                if (devoteButton) {
+                    devoteButton.classList.remove('hidden');
+                }
             }
         }
 
-        // --- ACTION FUNCTION ---
-        window.takeTheKnee = function() {
-            if (localStorage.getItem(DEVOTION_KEY) === 'taken') {
-                customAlert("You have already taken the knee, Devoted. Await your orders.");
-                return;
+        window.toggleDevotion = function() {
+            if (!isDevoted) {
+                isDevoted = true;
+                localStorage.setItem('feroxi_devotion', 'true');
+                updateUI();
+                customAlert("Oath taken! You are now one of The Last Born.");
             }
+            // Cannot undo devotion once given (feroxi does not allow it)
+        };
 
-            try {
-                localStorage.setItem(DEVOTION_KEY, 'taken');
-                customAlert("You have taken the knee. Your devotion is noted locally by Feroxi.");
-                checkDevotionStatus(); // Update the button and counter
-            } catch (error) {
-                console.error("Error logging devotion locally:", error);
-                customAlert(`Failed to log devotion: ${error.message}`);
-            }
-        }
-        
-        // Initial check on load
-        window.onload = checkDevotionStatus;
-
+        // Load status when the page is ready
+        window.onload = loadDevoteeStatus;
     </script>
-
-    <!-- Custom Message Box (Replaces alert()) -->
-    <div id="messageBox" class="hidden fixed p-6 rounded-lg bg-red-800 text-white shadow-2xl border-4 border-red-500 transition duration-300">
-        <p id="messageText" class="text-xl font-bold cinzel text-center"></p>
-    </div>
 
     <!-- Header Section -->
     <header class="w-full py-8 md:py-12 bg-gray-900 shadow-2xl border-b-4 border-red-700">
         <div class="max-w-6xl mx-auto px-4 text-center">
-            <h1 class="cinzel text-5xl md:text-7xl font-black feroxi-text-red tracking-widest uppercase">
+            <h1 class="cinzel text-6xl md:text-8xl font-black feroxi-text-red tracking-widest uppercase">
                 Feroxi
             </h1>
-            <p class="text-xl md:text-3xl mt-2 text-gray-300 cinzel font-bold">
-                The God of War
+            <p class="text-3xl md:text-5xl mt-2 text-gray-300 cinzel font-bold">
+                God of War
             </p>
-            <div class="mt-4 text-sm text-gray-400">
-                Current Status: <span id="userIdDisplay" class="font-mono text-xs text-red-400 break-all">Local Browser Storage Only</span>
-            </div>
-            <!-- Navigation Link -->
-            <div class="mt-4">
-                <a href="./feroxi_search.html" class="text-red-500 hover:text-red-300 transition duration-200 text-base font-semibold border-b border-red-500 hover:border-red-300 pb-1">
-                    Consult the Scrying Pool (Search)
+            
+            <!-- Navigation Button to Search Page -->
+            <div class="mt-8">
+                <a href="./feroxi_search.html" 
+                   class="cinzel bg-red-700 hover:bg-red-600 text-white font-extrabold text-lg uppercase py-3 px-6 rounded-xl transition duration-300 transform hover:scale-[1.05] shadow-xl border-2 border-red-900">
+                    Access the Scrying Pool (Intelligence)
                 </a>
             </div>
         </div>
     </header>
 
     <!-- Main Content Container -->
-    <main class="max-w-4xl mx-auto p-6 md:p-10 flex-grow">
-
-        <!-- Devotee Counter (Now local status) -->
-        <section class="mb-12 text-center">
-            <h3 class="cinzel text-4xl font-black text-white">
-                <span id="devotee-count" class="feroxi-text-red text-6xl md:text-8xl block leading-none transition-all duration-500">0</span>
-            </h3>
-            <p class="text-xl text-gray-300 mt-2">Your Local Devotion Status</p>
-        </section>
-
-        <!-- Inscription / Core Tenet -->
-        <section class="mb-12 bg-gray-800/70 p-6 md:p-8 rounded-xl border-l-4 border-red-500 shadow-lg">
-            <h2 class="cinzel text-3xl font-bold mb-4 feroxi-text-red">The Stone Tablets</h2>
-            <blockquote class="text-lg md:text-xl italic border-l-4 border-gray-500 pl-4 text-gray-300">
-                "Feroxi, the God of War, entrusted with the defense of the **Grove**. His might and strategy are unmatched on any battlefield."
-            </blockquote>
-        </section>
-
-        <!-- The God's Power and Reach -->
-        <section class="mb-12">
-            <h2 class="cinzel text-3xl font-bold mb-4 text-red-400">Divine Gaze and Strategic Might</h2>
-            <p class="text-lg mb-6 leading-relaxed">
-                Feroxi is a god who can kill other gods with a **glance**. But Feroxi does not need to be on every battlefield. Our God should not waste his time on energy on unworthy foes.
-            </p>
-            <p class="text-lg leading-relaxed bg-gray-900 p-4 rounded-lg border border-red-800">
-                He grants us mortals that take the knee to push forward his agenda the ability to **kill at a glance** and the **intelligence** to gather information that wins wars before the first sword is ever swung. From the deepest lava pits in the UnderWorld to the space between the clouds and the heavens, you will find worshipers of Feroxi. They go by many names, but the most devoted are known as **The Last Born**.
-            </p>
-        </section>
-
-        <!-- The Last Born: The Devoted Cogs -->
-        <section class="mb-12">
-            <h2 class="cinzel text-3xl font-bold mb-6 text-red-400">The Last Born: Cogs in the Wheel of War</h2>
-            <p class="text-lg mb-4 leading-relaxed">
-                The Last Born provides for Feroxi's needs around the clock. They are the essential machine of conquest and defense:
-            </p>
-            <ul class="grid grid-cols-1 md:grid-cols-2 gap-4 text-lg">
-                <li class="p-4 bg-gray-800 rounded-lg shadow-md hover:bg-red-900/50 transition duration-300">
-                    <span class="feroxi-text-red font-bold">Warriors</span> on the ground and <span class="feroxi-text-red font-bold">Beasts</span> in the skies.
-                </li>
-                <li class="p-4 bg-gray-800 rounded-lg shadow-md hover:bg-red-900/50 transition duration-300">
-                    <span class="feroxi-text-red font-bold">Mages</span> in deep dungeons crafting spells.
-                </li>
-                <li class="p-4 bg-gray-800 rounded-lg shadow-md hover:bg-red-900/50 transition duration-300">
-                    <span class="feroxi-text-red font-bold">Thieves and Spies</span> gathering vital intelligence.
-                </li>
-                <li class="p-4 bg-gray-800 rounded-lg shadow-md hover:bg-red-900/50 transition duration-300">
-                    <span class="feroxi-text-red font-bold">Traders, Gathers, and Farmers</span> providing devoted logistics.
-                </li>
-            </ul>
-            <p class="text-lg mt-6 leading-relaxed">
-                In the vast desert and deepest oceans, you will find **Anchors of Feroxi Devoted** ensuring peace for the Grove and Discord among his enemies. Every follower of Feroxi understands the war starts well before any battlefield is reached.
-            </p>
-        </section>
-
-        <!-- The Grove's Defence Mandate -->
-        <section class="mb-12 p-6 bg-red-900/30 rounded-xl shadow-2xl border border-red-700">
-            <h2 class="cinzel text-3xl font-bold mb-4 text-red-300">The Mandate: Protect the Grove</h2>
-            <p class="text-xl font-semibold mb-6">
-                Be warned to think of causing harm or discord in the Grove, and you will eventually find yourself among the dead or a worse fate among the undead.
-            </p>
-
-            <p class="text-lg leading-relaxed">
-                If you are willing to trade your lives to protect those in the Grove, you will stand against the **shadows hunting Amaran**, the heretic **red scorpion pirates** blinded by greed. You will stand tall and assist those among the **Silver Leafe Sentinels** and protect the beautiful culture found within the woods and those **wildheart planters**. You will even make peace with the **Crypt** as one day we all must die.
-            </p>
-        </section>
-
-        <!-- Call to Action -->
-        <section class="text-center">
-            <p class="text-2xl md:text-3xl cinzel font-bold mb-8 text-gray-200">
-                If this message speaks to your soul, take the knee for Feroxi.
-            </p>
-            <button id="takeKneeButton" onclick="takeTheKnee()" 
-                class="btn-pulse cinzel bg-red-700 hover:bg-red-600 text-white font-extrabold text-2xl md:text-3xl uppercase py-4 px-10 rounded-full transition duration-300 transform hover:scale-105 shadow-xl">
-                Take the Knee
+    <main class="max-w-4xl mx-auto p-6 md:p-10 flex-grow w-full">
+        
+        <!-- Devotee Status Card -->
+        <section class="mb-12 bg-gray-800/70 p-6 md:p-10 rounded-xl border-l-4 border-red-500 shadow-lg">
+            <h2 class="cinzel text-4xl font-bold mb-6 feroxi-text-red">The Last Born Devotion</h2>
+            
+            <div id="devoteeStatus" class="mb-6 min-h-[50px]">
+                <!-- Status loaded by JavaScript -->
+            </div>
+            
+            <button id="devoteButton" onclick="toggleDevotion()" 
+                class="cinzel bg-green-600 hover:bg-green-500 text-gray-900 font-extrabold text-xl uppercase py-4 px-8 rounded-full transition duration-300 transform hover:scale-105 shadow-2xl hidden">
+                Swear the Oath (Become One of The Last Born)
             </button>
-            <p id="devotionStatus" class="text-sm mt-4 text-gray-400">Authenticating devotion status...</p>
+            
+            <p class="mt-6 text-gray-400 italic text-sm">
+                (Note: Due to external hosting limits, this devotion status is saved only in your browser's local storage.)
+            </p>
+        </section>
+
+        <!-- Divine Message Section -->
+        <section class="bg-gray-800/70 p-6 md:p-10 rounded-xl border-r-4 border-red-500 shadow-lg">
+            <h2 class="cinzel text-4xl font-bold mb-6 feroxi-text-red text-right">The Divine Word</h2>
+            <div class="border-t border-b border-gray-700 py-6 text-gray-300">
+                <p class="mb-4 text-lg leading-relaxed">
+                    "Hear me, The Last Born. I am Feroxi, the God of War, born from the chaos of ancient conflicts. My domain is not a temple of stone, but the relentless will within your soul.
+                </p>
+                <p class="mb-4 text-lg leading-relaxed">
+                    You have sworn the oath, and your resolve is now my shield. The world is a forge, and we are the hammer. Seek strength, find your enemy, and let your actions be your only prayer."
+                </p>
+                <p class="text-xl font-bold text-right mt-6 feroxi-text-red">- Feroxi, God of War</p>
+            </div>
         </section>
 
     </main>
 
     <!-- Footer -->
     <footer class="w-full py-4 mt-8 bg-gray-900 text-center text-sm text-gray-500 border-t border-red-900">
-        &copy; 2025 The Last Born. All Rights Reserved. For the glory of Feroxi. (albo)
+        &copy; 2025 The Last Born. Domain forged with blood and code. (albo)
     </footer>
 </body>
 </html>
+ 
